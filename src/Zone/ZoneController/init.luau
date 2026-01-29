@@ -1,15 +1,15 @@
 -- CONFIG
 local WHOLE_BODY_DETECTION_LIMIT = 729000 -- This is roughly the volume where Region3 checks begin to exceed 0.5% in Script Performance
 
-
-
 -- LOCAL
-local Janitor = require(script.Parent.Janitor)
-local Enum_ = require(script.Parent.Enum)
-local Signal = require(script.Parent.Signal)
-local Tracker = require(script.Tracker)
-local CollectiveWorldModel = require(script.CollectiveWorldModel)
-local enum = Enum_.enums
+local zoneRoot = script.Parent
+assert(zoneRoot, "Missing root of Zone!")
+
+local Janitor = require(zoneRoot.Janitor)
+local enum = require(zoneRoot.Enum).enums
+local Tracker = require(script:FindFirstChild("Tracker"))
+local CollectiveWorldModel = require(script:FindFirstChild("CollectiveWorldModel"))
+
 local players = game:GetService("Players")
 local activeZones = {}
 local activeZonesTotalVolume = 0
@@ -25,16 +25,12 @@ local heartbeat = runService.Heartbeat
 local heartbeatConnections = {}
 local localPlayer = runService:IsClient() and players.LocalPlayer
 
-
-
 -- PUBLIC
 local ZoneController = {}
 local trackers = {}
 trackers.player = Tracker.new("player")
 trackers.item = Tracker.new("item")
 ZoneController.trackers = trackers
-
-
 
 -- LOCAL FUNCTIONS
 local function dictLength(dictionary)
@@ -57,7 +53,13 @@ end
 
 local heartbeatActions = {
 	["player"] = function(recommendedDetection)
-		return ZoneController._getZonesAndItems("player", activeZones, activeZonesTotalVolume, true, recommendedDetection)
+		return ZoneController._getZonesAndItems(
+			"player",
+			activeZones,
+			activeZonesTotalVolume,
+			true,
+			recommendedDetection
+		)
 	end,
 	["localPlayer"] = function(recommendedDetection)
 		local zonesAndOccupants = {}
@@ -78,17 +80,18 @@ local heartbeatActions = {
 	end,
 }
 
-
-
 -- PRIVATE FUNCTIONS
 function ZoneController._registerZone(zone)
-   	registeredZones[zone] = true
+	registeredZones[zone] = true
 	local registeredJanitor = zone.janitor:add(Janitor.new(), "destroy")
 	zone._registeredJanitor = registeredJanitor
-	registeredJanitor:add(zone.updated:Connect(function()
-		ZoneController._updateZoneDetails()
-	end), "Disconnect")
-   ZoneController._updateZoneDetails()
+	registeredJanitor:add(
+		zone.updated:Connect(function()
+			ZoneController._updateZoneDetails()
+		end),
+		"Disconnect"
+	)
+	ZoneController._updateZoneDetails()
 end
 
 function ZoneController._deregisterZone(zone)
@@ -106,7 +109,7 @@ function ZoneController._registerConnection(registeredZone, registeredTriggerTyp
 		ZoneController._updateZoneDetails()
 	end
 	local currentTriggerCount = activeTriggers[registeredTriggerType]
-	activeTriggers[registeredTriggerType] = (currentTriggerCount and currentTriggerCount+1) or 1
+	activeTriggers[registeredTriggerType] = (currentTriggerCount and currentTriggerCount + 1) or 1
 	registeredZone.activeTriggers[registeredTriggerType] = true
 	if registeredZone.touchedConnectionActions[registeredTriggerType] then
 		registeredZone:_formTouchedConnection(registeredTriggerType)
@@ -139,7 +142,9 @@ end
 
 function ZoneController._formHeartbeat(registeredTriggerType)
 	local heartbeatConnection = heartbeatConnections[registeredTriggerType]
-	if heartbeatConnection then return end
+	if heartbeatConnection then
+		return
+	end
 	-- This will only ever connect once per triggerType per server
 	-- This means instead of initiating a loop per-zone we can handle everything within
 	-- a singular connection. This is particularly beneficial for player/item-orinetated
@@ -178,17 +183,17 @@ function ZoneController._formHeartbeat(registeredTriggerType)
 				if settingsGroup and settingsGroup.onlyEnterOnceExitedAll == true then
 					--local currentOccupants = zone.occupants[registeredTriggerType]
 					--if currentOccupants then
-						for newOccupant, _ in pairs(newOccupants) do
-							--if currentOccupants[newOccupant] then
-								local groupDetail = occupantsToBlock[zone.settingsGroupName]
-								if not groupDetail then
-									groupDetail = {}
-									occupantsToBlock[zone.settingsGroupName] = groupDetail
-								end
-								groupDetail[newOccupant] = zone
-							--end
+					for newOccupant, _ in pairs(newOccupants) do
+						--if currentOccupants[newOccupant] then
+						local groupDetail = occupantsToBlock[zone.settingsGroupName]
+						if not groupDetail then
+							groupDetail = {}
+							occupantsToBlock[zone.settingsGroupName] = groupDetail
 						end
-						zonesToPotentiallyIgnore[zone] = newOccupants
+						groupDetail[newOccupant] = zone
+						--end
+					end
+					zonesToPotentiallyIgnore[zone] = newOccupants
 					--end
 				end
 			end
@@ -205,19 +210,22 @@ function ZoneController._formHeartbeat(registeredTriggerType)
 			end
 
 			-- This deduces what signals should be fired
-			local collectiveSignalsToFire = {{}, {}}
+			local collectiveSignalsToFire = { {}, {} }
 			for zone, _ in pairs(activeZones) do
 				if zone.activeTriggers[registeredTriggerType] then
 					local zAccuracy = zone.accuracy
 					local occupantsDict = zonesAndOccupants[zone] or {}
 					local occupantsPresent = false
-					for k,v in pairs(occupantsDict) do
+
+					for _ in pairs(occupantsDict) do
 						occupantsPresent = true
 						break
 					end
+
 					if occupantsPresent and zAccuracy > highestAccuracy then
 						highestAccuracy = zAccuracy
 					end
+
 					local signalsToFire = zone:_updateOccupants(registeredTriggerType, occupantsDict)
 					collectiveSignalsToFire[1][zone] = signalsToFire.exited
 					collectiveSignalsToFire[2][zone] = signalsToFire.entered
@@ -225,10 +233,10 @@ function ZoneController._formHeartbeat(registeredTriggerType)
 			end
 
 			-- This ensures all exited signals and called before entered signals
-			local indexToSignalType = {"Exited", "Entered"}
+			local indexToSignalType = { "Exited", "Entered" }
 			for index, zoneAndOccupants in pairs(collectiveSignalsToFire) do
 				local signalType = indexToSignalType[index]
-				local signalName = registeredTriggerType..signalType
+				local signalName = registeredTriggerType .. signalType
 				for zone, occupants in pairs(zoneAndOccupants) do
 					local signal = zone[signalName]
 					if signal then
@@ -290,7 +298,13 @@ function ZoneController._updateZoneDetails()
 	end
 end
 
-function ZoneController._getZonesAndItems(trackerName, zonesDictToCheck, zoneCustomVolume, onlyActiveZones, recommendedDetection)
+function ZoneController._getZonesAndItems(
+	trackerName,
+	zonesDictToCheck,
+	zoneCustomVolume,
+	onlyActiveZones,
+	recommendedDetection
+)
 	local totalZoneVolume = zoneCustomVolume
 	if not totalZoneVolume then
 		for zone, _ in pairs(zonesDictToCheck) do
@@ -324,7 +338,11 @@ function ZoneController._getZonesAndItems(trackerName, zonesDictToCheck, zoneCus
 		-- checks directly within each zone to determine players inside
 		for zone, _ in pairs(zonesDictToCheck) do
 			if not onlyActiveZones or zone.activeTriggers[trackerName] then
-				local result = CollectiveWorldModel:GetPartBoundsInBox(zone.region.CFrame, zone.region.Size, tracker.whitelistParams)
+				local result = CollectiveWorldModel:GetPartBoundsInBox(
+					zone.region.CFrame,
+					zone.region.Size,
+					tracker.whitelistParams
+				)
 				local finalItemsDict = {}
 				for _, itemOrChild in pairs(result) do
 					local correspondingItem = tracker.partToItem[itemOrChild]
@@ -347,8 +365,6 @@ function ZoneController._getZonesAndItems(trackerName, zonesDictToCheck, zoneCus
 	end
 	return zonesAndOccupants
 end
-
-
 
 -- PUBLIC FUNCTIONS
 function ZoneController.getZones()
@@ -396,19 +412,10 @@ function ZoneController.getTouchingZones(item, onlyActiveZones, recommendedDetec
 			table.insert(bodyPartsToCheck, hrp)
 		end
 	end
-	if not itemSize or not itemCFrame then return {} end
+	if not itemSize or not itemCFrame then
+		return {}
+	end
 
-	--[[
-	local part = Instance.new("Part")
-	part.Size = itemSize
-	part.CFrame = itemCFrame
-	part.Anchored = true
-	part.CanCollide = false
-	part.Color = Color3.fromRGB(255, 0, 0)
-	part.Transparency = 0.4
-	part.Parent = workspace
-	game:GetService("Debris"):AddItem(part, 2)
-	--]]
 	local partsTable = (onlyActiveZones and activeParts) or allParts
 	local partToZoneDict = (onlyActiveZones and activePartToZone) or allPartToZone
 
@@ -440,18 +447,17 @@ function ZoneController.getTouchingZones(item, onlyActiveZones, recommendedDetec
 	local totalRemainingBoundParts = #boundPartsThatRequirePreciseChecks
 	local precisePartsCount = 0
 	if totalRemainingBoundParts > 0 then
-		
 		local preciseParams = OverlapParams.new()
 		preciseParams.FilterType = Enum.RaycastFilterType.Include
 		preciseParams.MaxParts = totalRemainingBoundParts
 		preciseParams.FilterDescendantsInstances = boundPartsThatRequirePreciseChecks
 
-		local character = item
 		for _, bodyPart in pairs(bodyPartsToCheck) do
 			local endCheck = false
 			if not bodyPart:IsA("BasePart") or (itemIsCharacter and Tracker.bodyPartsToIgnore[bodyPart.Name]) then
 				continue
 			end
+
 			local preciseParts = CollectiveWorldModel:GetPartsInPart(bodyPart, preciseParams)
 			for _, precisePart in pairs(preciseParts) do
 				if not touchingPartsDictionary[precisePart] then
@@ -472,7 +478,7 @@ function ZoneController.getTouchingZones(item, onlyActiveZones, recommendedDetec
 			end
 		end
 	end
-	
+
 	local touchingZonesArray = {}
 	local newExitDetection
 	for zone, _ in pairs(zonesDict) do
@@ -481,9 +487,11 @@ function ZoneController.getTouchingZones(item, onlyActiveZones, recommendedDetec
 		end
 		table.insert(touchingZonesArray, zone)
 	end
+
 	if newExitDetection and tracker then
 		tracker.exitDetections[item] = newExitDetection
 	end
+
 	return touchingZonesArray, touchingPartsDictionary
 end
 
@@ -494,15 +502,13 @@ function ZoneController.setGroup(settingsGroupName, properties)
 		group = {}
 		settingsGroups[settingsGroupName] = group
 	end
-	
 
 	-- PUBLIC PROPERTIES --
 	group.onlyEnterOnceExitedAll = true
-	
+
 	-- PRIVATE PROPERTIES --
 	group._name = settingsGroupName
 	group._memberZones = {}
-
 
 	if typeof(properties) == "table" then
 		for k, v in pairs(properties) do
@@ -528,7 +534,5 @@ function ZoneController.getWorkspaceContainer()
 	end
 	return container
 end
-
-
 
 return ZoneController

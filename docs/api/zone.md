@@ -1,5 +1,5 @@
-[Accuracy Enum]: https://github.com/1ForeverHD/ZonePlus/blob/main/src/Zone/Enum/Accuracy.lua
-[Detection Enum]: https://github.com/1ForeverHD/ZonePlus/blob/main/src/Zone/Enum/Detection.lua
+[Accuracy Enum]: https://github.com/1ForeverHD/ZonePlus/blob/main/src/Zone/Enum/Accuracy.luau
+[Detection Enum]: https://github.com/1ForeverHD/ZonePlus/blob/main/src/Zone/Enum/Detection.luau
 [setAccuracy]: https://1foreverhd.github.io/ZonePlus/api/zone/#setaccuracy
 [setDetection]: https://1foreverhd.github.io/ZonePlus/api/zone/#setdetection
 [icon:trackItem]: https://1foreverhd.github.io/ZonePlus/api/zone/#trackitem
