@@ -9,10 +9,16 @@ function CollectiveWorldModel.setupWorldModel()
 		return worldModel
 	end
 
-	local location = (runService:IsClient() and "ReplicatedStorage") or "ServerStorage"
+	local location = game:GetService((runService:IsClient() and "ReplicatedStorage") or "ServerStorage")
+
+	worldModel = location:FindFirstChild("ZonePlusWorldModel")
+	if worldModel then
+		return worldModel
+	end
+
 	worldModel = Instance.new("WorldModel")
 	worldModel.Name = "ZonePlusWorldModel"
-	worldModel.Parent = game:GetService(location)
+	worldModel.Parent = location
 
 	return worldModel
 end

@@ -30,6 +30,7 @@ if not referencePresent then
 end
 Zone.enum = enum
 Zone._controller = ZoneController
+Zone._version = require(script:FindFirstChild("VERSION"))
 
 -- CONSTRUCTORS
 function Zone.new(container)
