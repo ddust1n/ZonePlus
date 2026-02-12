@@ -1,14 +1,12 @@
 [package]
 name = "ddust1n/zoneplus"
 description = "A fork of 1foreverhd's zoneplus, fixed for wally."
-license = "MIT"
-realm = "shared"
-registry = "https://github.com/UpliftGames/wally-index"
 version = "3.2.4"
-exclude = [
-	"docs", ".moonwave", "test",
-	"ZonePlus.rbxm", "ZonePlus.rbxmx",
-	".gitignore", "foreman.toml",
-]
+license = "MIT"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+exclude = ["**"]
+include = ["src", "src/**", "default.project.json", "LICENSE", "wally.toml"]
 
 [dependencies]
